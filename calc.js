@@ -251,6 +251,10 @@ reader.on('line', l => {
         console.error(`  ${colErrorFg}${l}${colResetFg}`);
       }
       else if (e instanceof Error) {
+        if (e.message.match('Undefined symbol')) {
+            console.error(e.message);
+        }
+        console.error(`  ${colErrorFg}${l}${colResetFg}`);
         reader.history.shift();
       }
     }
