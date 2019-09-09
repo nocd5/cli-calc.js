@@ -4,7 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const math = require('mathjs');
 
-math.config({ number: 'BigNumber', precision: 128 });
+math.config({ number: 'BigNumber', precision: 256 });
 
 const parser = math.parser();
 
@@ -36,16 +36,16 @@ parser.set('_exp', v => math.format(v, {notation: 'exponential'}));
 const parseHex = s => s.replace(/\b0x[0-9A-F]+\b/gi, e => parseInt(e.substr(2), 16));
 const parseBin = s => s.replace(/\b0b[01]+\b/gi, e => parseInt(e.substr(2), 2));
 const parseSIUnit = s => s
-  .replace(/\b([0-9]*.?[0-9]+)k\b/gi, '$1e+3')
-  .replace(/\b([0-9]*.?[0-9]+)m\b/gi, '$1e+6')
-  .replace(/\b([0-9]*.?[0-9]+)g\b/gi, '$1e+9')
-  .replace(/\b([0-9]*.?[0-9]+)t\b/gi, '$1e+12')
-  .replace(/\b([0-9]*.?[0-9]+)p\b/gi, '$1e+15')
-  .replace(/\b([0-9]*.?[0-9]+)mm\b/gi, '$1e-3')
-  .replace(/\b([0-9]*.?[0-9]+)uu\b/gi, '$1e-6')
-  .replace(/\b([0-9]*.?[0-9]+)nn\b/gi, '$1e-9')
-  .replace(/\b([0-9]*.?[0-9]+)pp\b/gi, '$1e-12')
-  .replace(/\b([0-9]*.?[0-9]+)ff\b/gi, '$1e-15');
+  .replace(/([0-9]*\.?[0-9]+)k\b/gi, '$1e+3')
+  .replace(/([0-9]*\.?[0-9]+)m\b/gi, '$1e+6')
+  .replace(/([0-9]*\.?[0-9]+)g\b/gi, '$1e+9')
+  .replace(/([0-9]*\.?[0-9]+)t\b/gi, '$1e+12')
+  .replace(/([0-9]*\.?[0-9]+)p\b/gi, '$1e+15')
+  .replace(/([0-9]*\.?[0-9]+)mm\b/gi, '$1e-3')
+  .replace(/([0-9]*\.?[0-9]+)uu\b/gi, '$1e-6')
+  .replace(/([0-9]*\.?[0-9]+)nn\b/gi, '$1e-9')
+  .replace(/([0-9]*\.?[0-9]+)pp\b/gi, '$1e-12')
+  .replace(/([0-9]*\.?[0-9]+)ff\b/gi, '$1e-15');
 
 const reader = require('readline').createInterface({
   input: process.stdin,
@@ -78,13 +78,27 @@ if (process.stdin.isTTY) {
   });
 }
 
-const truncate = (s, l) => s.length <= l ? s : `${s.substr(0, l)}...`;
+const truncate = (s, l) => {
+    if (s.length <= l) {
+      return s;
+    }
+    else {
+      let m = /e[\+-]\d+/gim.exec(s);
+      if (m != null) {
+          let i = m.index;
+          return `${s.substr(0, l - (s.length - i))}...${s.substr(i)}`;
+      }
+      else {
+          return `${s.substr(0, l)}...`;
+      }
+    }
+}
 
 const execute = (cmd) => {
   let buf = {};
   Object.keys(parser.scope).forEach(k => buf[k] = parser.scope[k]);
-  buf['@'] = buf['$'];
-  delete(buf['$']);
+  buf['@'] = buf['__at__'];
+  delete(buf['__at__']);
 
   switch(cmd) {
     case 'history':
@@ -99,7 +113,7 @@ const execute = (cmd) => {
     case 'ls':
       Object.keys(buf).filter(k => !(buf[k] instanceof Function)).forEach(k => {
         if (typeof(buf[k]) != 'undefined') {
-          console.log(`${k}: ${truncate(buf[k].toString(), 60)}`);
+          console.log(`${k}: ${truncate(buf[k].toString(), 80)}`);
         }
       });
       break;
@@ -157,7 +171,7 @@ const assign = (n, t, v) => {
 reader.on('line', l => {
   if (l.length > 0) {
     try {
-      let exp = l.replace(/@/gi, '$');
+      let exp = l.replace(/@/gi, '__at__');
       exp = parseSIUnit(parseBin(parseHex(exp)));
       let buf = [];
       buf[0] = math.parse(exp);
@@ -174,7 +188,7 @@ reader.on('line', l => {
           (typeof(node.fn)    == 'undefined')
       ) {
         reader.history.shift();
-        execute(node.name);
+        execute(node.name.replace(/__at__/gi, '@'));
       }
       else {
         let result = node.compile().eval(parser.scope);
@@ -195,9 +209,9 @@ reader.on('line', l => {
             }
             k = k.value;
           }
-          console.log(truncate(math.round(result, 64).toString(), 60));
+          console.log(truncate(math.round(result, 128).toString(), 80));
         }
-        parser.set('$', node);
+        parser.set('__at__', node);
       }
     }
     catch(e)
