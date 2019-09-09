@@ -33,8 +33,34 @@ parser.set('eng', v => math.format(v, {notation: 'engineering'}));
 parser.set('fix', v => math.format(v, {notation: 'fixed'}));
 parser.set('_exp', v => math.format(v, {notation: 'exponential'}));
 
-const parseHex = s => s.replace(/\b0x[0-9A-F]+\b/gi, e => parseInt(e.substr(2), 16));
-const parseBin = s => s.replace(/\b0b[01]+\b/gi, e => parseInt(e.substr(2), 2));
+const parseHex = s => {
+    (s.match(/\b0x[\.0-9A-F]+\b/gi) || []).forEach(m => {
+        let p = m.match(/\./g);
+        if (p != null && p.length > 1) throw new SyntaxError;
+
+        let w = 0;
+        p = m.match(/\./);
+        if (p != null) {
+            w = (m.length - p.index - 1) * 4;
+        }
+        s = s.replace(m, e => parseInt(e.replace(/\./,'').substr(2), 16) / math.pow(2, w));
+    });
+    return s;
+};
+const parseBin = s => {
+    (s.match(/\b0b[\.01]+\b/g) || []).forEach(m => {
+        let p = m.match(/\./g);
+        if (p != null && p.length > 1) throw new SyntaxError;
+
+        let w = 0;
+        p = m.match(/\./);
+        if (p != null) {
+            w = m.length - p.index - 1;
+        }
+        s = s.replace(m, e => parseInt(e.replace(/\./,'').substr(2), 2) / math.pow(2, w));
+    });
+    return s;
+};
 const parseSIUnit = s => s
   .replace(/([0-9]*\.?[0-9]+)k\b/gi, '$1e+3')
   .replace(/([0-9]*\.?[0-9]+)m\b/gi, '$1e+6')
