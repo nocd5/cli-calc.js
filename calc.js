@@ -34,32 +34,32 @@ parser.set('fix', v => math.format(v, {notation: 'fixed'}));
 parser.set('_exp', v => math.format(v, {notation: 'exponential'}));
 
 const parseHex = s => {
-    (s.match(/\b0x[\.0-9A-F]+\b/gi) || []).forEach(m => {
-        let p = m.match(/\./g);
-        if (p != null && p.length > 1) throw new SyntaxError;
+  (s.match(/\b0x[\.0-9A-F]+\b/gi) || []).forEach(m => {
+    let p = m.match(/\./g);
+    if (p != null && p.length > 1) throw new SyntaxError;
 
-        let w = 0;
-        p = m.match(/\./);
-        if (p != null) {
-            w = (m.length - p.index - 1) * 4;
-        }
-        s = s.replace(m, e => parseInt(e.replace(/\./,'').substr(2), 16) / math.pow(2, w));
-    });
-    return s;
+    let w = 0;
+    p = m.match(/\./);
+    if (p != null) {
+      w = (m.length - p.index - 1) * 4;
+    }
+    s = s.replace(m, e => parseInt(e.replace(/\./,'').substr(2), 16) / math.pow(2, w));
+  });
+  return s;
 };
 const parseBin = s => {
-    (s.match(/\b0b[\.01]+\b/g) || []).forEach(m => {
-        let p = m.match(/\./g);
-        if (p != null && p.length > 1) throw new SyntaxError;
+  (s.match(/\b0b[\.01]+\b/g) || []).forEach(m => {
+    let p = m.match(/\./g);
+    if (p != null && p.length > 1) throw new SyntaxError;
 
-        let w = 0;
-        p = m.match(/\./);
-        if (p != null) {
-            w = m.length - p.index - 1;
-        }
-        s = s.replace(m, e => parseInt(e.replace(/\./,'').substr(2), 2) / math.pow(2, w));
-    });
-    return s;
+    let w = 0;
+    p = m.match(/\./);
+    if (p != null) {
+      w = m.length - p.index - 1;
+    }
+    s = s.replace(m, e => parseInt(e.replace(/\./,'').substr(2), 2) / math.pow(2, w));
+  });
+  return s;
 };
 const parseSIUnit = s => s
   .replace(/([0-9]*\.?[0-9]+)k\b/gi, '$1e+3')
@@ -105,19 +105,19 @@ if (process.stdin.isTTY) {
 }
 
 const truncate = (s, l) => {
-    if (s.length <= l) {
-      return s;
+  if (s.length <= l) {
+    return s;
+  }
+  else {
+    let m = /e[\+-]\d+/gim.exec(s);
+    if (m != null) {
+      let i = m.index;
+      return `${s.substr(0, l - (s.length - i))}...${s.substr(i)}`;
     }
     else {
-      let m = /e[\+-]\d+/gim.exec(s);
-      if (m != null) {
-          let i = m.index;
-          return `${s.substr(0, l - (s.length - i))}...${s.substr(i)}`;
-      }
-      else {
-          return `${s.substr(0, l)}...`;
-      }
+      return `${s.substr(0, l)}...`;
     }
+  }
 }
 
 const execute = (cmd) => {
