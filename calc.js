@@ -1,7 +1,7 @@
 'use strict';
 
-const fs = require("fs");
-const path = require("path");
+const fs = require('fs');
+const path = require('path');
 const math = require('mathjs');
 
 math.config({ number: 'BigNumber', precision: 256 });
@@ -92,14 +92,14 @@ if (process.stdin.isTTY) {
   reader.setPrompt(`${colPromptBg} Calc ${colResetBg} > `);
   reader.prompt();
   // history
-  const home = process.env[process.platform == "win32" ? "USERPROFILE" : "HOME"];
+  const home = process.env[process.platform == 'win32' ? 'USERPROFILE' : 'HOME'];
   const HistoryFile = path.join(home, '.calc.history');
   try {
     reader.history = JSON.parse(fs.readFileSync(HistoryFile));
   }
   catch(e) { }
   reader.on('close', () => {
-    fs.writeFileSync(HistoryFile, JSON.stringify(reader.history, null, "  "));
+    fs.writeFileSync(HistoryFile, JSON.stringify(reader.history, null, '  '));
     process.exit(0);
   });
 }
