@@ -2,9 +2,9 @@
 
 const fs = require('fs');
 const path = require('path');
-const math = require('mathjs');
+const mathjs = require('mathjs');
 
-math.config({ number: 'BigNumber', precision: 256 });
+const math = mathjs.create(mathjs.all, { number: 'BigNumber', precision: 256 });
 
 const parser = math.parser();
 
@@ -217,7 +217,7 @@ reader.on('line', l => {
         execute(node.name.replace(/__at__/gi, '@'));
       }
       else {
-        let result = node.compile().eval(parser.scope);
+        let result = node.compile().evaluate(parser.scope);
         if (typeof(result) == 'undefined') {
         }
         else if (typeof(result) == 'string') {
