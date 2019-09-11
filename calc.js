@@ -15,7 +15,7 @@ parser.set('hex', v => {
   }
   else {
     let j = math.number(v);
-    j += (1 << (math.ceil((math.log(-j, 2)+1)/4)*4));
+    j += (1 << (math.ceil((math.log(-j, 2) + 1) / 4) * 4));
     return `0x${math.number(j).toString(16).toUpperCase()}`;
   }
 });
@@ -25,13 +25,13 @@ parser.set('bin', v => {
   }
   else {
     let j = math.number(v);
-    j += (1 << (math.ceil((math.log(-j, 2)+1)/4)*4));
+    j += (1 << (math.ceil((math.log(-j, 2) + 1) / 4) * 4));
     return `0b${math.number(j).toString(2).toUpperCase()}`;
   }
 });
-parser.set('eng', v => math.format(v, {notation: 'engineering'}));
-parser.set('fix', v => math.format(v, {notation: 'fixed'}));
-parser.set('_exp', v => math.format(v, {notation: 'exponential'}));
+parser.set('eng', v => math.format(v, { notation: 'engineering' }));
+parser.set('fix', v => math.format(v, { notation: 'fixed' }));
+parser.set('_exp', v => math.format(v, { notation: 'exponential' }));
 
 const parseHex = s => {
   (s.match(/\b0x[\.0-9A-F]+\b/gi) || []).forEach(m => {
@@ -43,7 +43,7 @@ const parseHex = s => {
     if (p != null) {
       w = (m.length - p.index - 1) * 4;
     }
-    s = s.replace(m, e => parseInt(e.replace(/\./,'').substr(2), 16) / math.pow(2, w));
+    s = s.replace(m, e => parseInt(e.replace(/\./, '').substr(2), 16) / math.pow(2, w));
   });
   return s;
 };
@@ -57,7 +57,7 @@ const parseBin = s => {
     if (p != null) {
       w = m.length - p.index - 1;
     }
-    s = s.replace(m, e => parseInt(e.replace(/\./,'').substr(2), 2) / math.pow(2, w));
+    s = s.replace(m, e => parseInt(e.replace(/\./, '').substr(2), 2) / math.pow(2, w));
   });
   return s;
 };
@@ -97,7 +97,7 @@ if (process.stdin.isTTY) {
   try {
     reader.history = JSON.parse(fs.readFileSync(HistoryFile));
   }
-  catch(e) { }
+  catch (e) { }
   reader.on('close', () => {
     fs.writeFileSync(HistoryFile, JSON.stringify(reader.history, null, '  '));
     process.exit(0);
@@ -126,7 +126,7 @@ const execute = (cmd) => {
   buf['@'] = buf['__at__'];
   delete(buf['__at__']);
 
-  switch(cmd) {
+  switch (cmd) {
     case 'history':
       console.log(reader.history);
       break;
@@ -163,8 +163,7 @@ const execute = (cmd) => {
 }
 
 const assign = (n, t, v) => {
-  for (let i = 0; i < n.length; i++)
-  {
+  for (let i = 0; i < n.length; i++) {
     let c = n[i].getContent();
     if (typeof(c.args) == 'undefined') {
       if (typeof(c.value) == 'undefined') {
@@ -218,8 +217,7 @@ reader.on('line', l => {
       }
       else {
         let result = node.compile().evaluate(parser.scope);
-        if (typeof(result) == 'undefined') {
-        }
+        if (typeof(result) == 'undefined') { }
         else if (typeof(result) == 'string') {
           console.log(result);
         }
@@ -240,8 +238,7 @@ reader.on('line', l => {
         parser.set('__at__', node);
       }
     }
-    catch(e)
-    {
+    catch (e) {
       if (e instanceof SyntaxError) {
         console.error('Invalid expression');
         console.error(`  ${colErrorFg}${l}${colResetFg}`);
@@ -252,7 +249,7 @@ reader.on('line', l => {
       }
       else if (e instanceof Error) {
         if (e.message.match('Undefined symbol')) {
-            console.error(e.message);
+          console.error(e.message);
         }
         console.error(`  ${colErrorFg}${l}${colResetFg}`);
         reader.history.shift();
@@ -265,7 +262,7 @@ reader.on('line', l => {
 });
 
 // disable Ctrl-C
-reader.on('SIGINT', function () {
+reader.on('SIGINT', () => {
   reader.clearLine();
   console.log(`${colWarningFg}Use \`exit\` or \`quit\` to exit${colResetFg}`);
   if (process.stdin.isTTY) {
