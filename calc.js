@@ -3,6 +3,8 @@
 const fs = require('fs');
 const path = require('path');
 const mathjs = require('mathjs');
+const keypress = require('keypress');
+const clipboardy = require('clipboardy');
 
 const math = mathjs.create(mathjs.all, { number: 'BigNumber', precision: 256 });
 
@@ -34,7 +36,7 @@ parser.set('fix', v => math.format(v, { notation: 'fixed' }));
 parser.set('_exp', v => math.format(v, { notation: 'exponential' }));
 
 const parseHex = s => {
-  (s.match(/\b0x[\.0-9A-F]+\b/gi) || []).forEach(m => {
+  (s.match(/\b0x[\.0-9A-F_]+\b/gi) || []).forEach(m => {
     let p = m.match(/\./g);
     if (p != null && p.length > 1) throw new SyntaxError;
 
@@ -43,12 +45,12 @@ const parseHex = s => {
     if (p != null) {
       w = (m.length - p.index - 1) * 4;
     }
-    s = s.replace(m, e => parseInt(e.replace(/\./, '').substr(2), 16) / math.pow(2, w));
+    s = s.replace(m, e => parseInt(e.substr(2).replace(/\./, '').replace(/_/g,''), 16) / math.pow(2, w));
   });
   return s;
 };
 const parseBin = s => {
-  (s.match(/\b0b[\.01]+\b/g) || []).forEach(m => {
+  (s.match(/\b0b[\.01_]+\b/g) || []).forEach(m => {
     let p = m.match(/\./g);
     if (p != null && p.length > 1) throw new SyntaxError;
 
@@ -57,7 +59,7 @@ const parseBin = s => {
     if (p != null) {
       w = m.length - p.index - 1;
     }
-    s = s.replace(m, e => parseInt(e.replace(/\./, '').substr(2), 2) / math.pow(2, w));
+    s = s.replace(m, e => parseInt(e.substr(2).replace(/\./, '').replace(/_/g,''), 2) / math.pow(2, w));
   });
   return s;
 };
@@ -79,6 +81,7 @@ const reader = require('readline').createInterface({
 });
 
 const colPromptBg = '\x1b[44m';
+const colInfoBg = '\x1b[42m';
 const colErrorFg = '\x1b[91m';
 const colWarningFg = '\x1b[93m';
 const colResetBg = '\x1b[49m';
@@ -120,7 +123,7 @@ const truncate = (s, l) => {
   }
 }
 
-const execute = (cmd) => {
+const execute = cmd => {
   let buf = {};
   Object.keys(parser.scope).forEach(k => buf[k] = parser.scope[k]);
   buf['@'] = buf['__at__'];
@@ -193,6 +196,7 @@ const assign = (n, t, v) => {
   }
 }
 
+let last_result = '';
 reader.on('line', l => {
   if (l.length > 0) {
     try {
@@ -219,7 +223,8 @@ reader.on('line', l => {
         let result = node.compile().evaluate(parser.scope);
         if (typeof(result) == 'undefined') { }
         else if (typeof(result) == 'string') {
-          console.log(result);
+          last_result = result;
+          console.log(last_result);
         }
         else {
           let v = node;
@@ -233,7 +238,8 @@ reader.on('line', l => {
             }
             k = k.value;
           }
-          console.log(truncate(math.round(result, 128).toString(), 80));
+          last_result = truncate(math.round(result, 128).toString(), 80);
+          console.log(last_result);
         }
         parser.set('__at__', node);
       }
@@ -262,10 +268,32 @@ reader.on('line', l => {
 });
 
 // disable Ctrl-C
-reader.on('SIGINT', () => {
-  reader.clearLine();
-  console.log(`${colWarningFg}Use \`exit\` or \`quit\` to exit${colResetFg}`);
-  if (process.stdin.isTTY) {
-    reader.prompt();
+reader.on('SIGINT', () => {});
+
+// Clipboard
+// Ctrl-C : Copy last result to the clipboard
+// Ctrl-V : Paste from the clipboard
+keypress(process.stdin);
+process.stdin.on('keypress', (ch, key) => {
+  if (key && key.ctrl) {
+    switch (key.name) {
+      case 'c':
+        if (last_result != null && last_result.length > 0) {
+          clipboardy.write(last_result);
+        }
+        break;
+      case 'v':
+        let cb = '';
+        try {
+          cb = clipboardy.readSync();
+        }
+        catch {}
+        finally {
+          reader.write(cb);
+        }
+        break;
+    }
   }
 });
+process.stdin.setRawMode(true);
+process.stdin.resume();
