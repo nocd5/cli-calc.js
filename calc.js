@@ -5,12 +5,24 @@ const path = require('path');
 const mathjs = require('mathjs');
 const keypress = require('keypress');
 const clipboardy = require('clipboardy');
+const readline = require('readline');
+
+const colPromptBg = '\x1b[44m';
+const colInfoBg = '\x1b[42m';
+const colErrorFg = '\x1b[91m';
+const colWarningFg = '\x1b[93m';
+const colResetBg = '\x1b[49m';
+const colResetFg = '\x1b[39m';
 
 const math = mathjs.create(mathjs.all, { number: 'BigNumber', precision: 256 });
-
 const parser = math.parser();
 
-// User define functions
+const reader = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+});
+
+// Formatting functions
 parser.set('hex', v => {
   if (v >= 0) {
     return `0x${math.number(v).toString(16).toUpperCase()}`;
@@ -35,6 +47,15 @@ parser.set('eng', v => math.format(v, { notation: 'engineering' }));
 parser.set('fix', v => math.format(v, { notation: 'fixed' }));
 parser.set('_exp', v => math.format(v, { notation: 'exponential' }));
 
+// Ignore formatting function rules
+const rules = [
+  'hex(n)->n',
+  'bin(n)->n',
+  'eng(n)->n',
+  'fix(n)->n',
+  '_exp(n)->n'
+];
+
 const parseHex = s => {
   (s.match(/\b0x[\.0-9A-F_]+\b/gi) || []).forEach(m => {
     let p = m.match(/\./g);
@@ -45,7 +66,7 @@ const parseHex = s => {
     if (p != null) {
       w = (m.length - p.index - 1) * 4;
     }
-    s = s.replace(m, e => parseInt(e.substr(2).replace(/\./, '').replace(/_/g,''), 16) / math.pow(2, w));
+    s = s.replace(m, e => math.divide(math.bignumber(e.replace(/\./, '').replace(/_/g,'')), math.bignumber(2).pow(w)));
   });
   return s;
 };
@@ -59,7 +80,7 @@ const parseBin = s => {
     if (p != null) {
       w = m.length - p.index - 1;
     }
-    s = s.replace(m, e => parseInt(e.substr(2).replace(/\./, '').replace(/_/g,''), 2) / math.pow(2, w));
+    s = s.replace(m, e => math.divide(math.bignumber(e.replace(/\./, '').replace(/_/g,'')), math.bignumber(2).pow(w)));
   });
   return s;
 };
@@ -69,23 +90,17 @@ const parseSIUnit = s => s
   .replace(/([0-9]*\.?[0-9]+)g\b/gi, '$1e+9')
   .replace(/([0-9]*\.?[0-9]+)t\b/gi, '$1e+12')
   .replace(/([0-9]*\.?[0-9]+)p\b/gi, '$1e+15')
+  .replace(/([0-9]*\.?[0-9]+)e\b/gi, '$1e+18')
+  .replace(/([0-9]*\.?[0-9]+)z\b/gi, '$1e+21')
+  .replace(/([0-9]*\.?[0-9]+)y\b/gi, '$1e+24')
   .replace(/([0-9]*\.?[0-9]+)mm\b/gi, '$1e-3')
   .replace(/([0-9]*\.?[0-9]+)uu\b/gi, '$1e-6')
   .replace(/([0-9]*\.?[0-9]+)nn\b/gi, '$1e-9')
   .replace(/([0-9]*\.?[0-9]+)pp\b/gi, '$1e-12')
-  .replace(/([0-9]*\.?[0-9]+)ff\b/gi, '$1e-15');
-
-const reader = require('readline').createInterface({
-  input: process.stdin,
-  output: process.stdout,
-});
-
-const colPromptBg = '\x1b[44m';
-const colInfoBg = '\x1b[42m';
-const colErrorFg = '\x1b[91m';
-const colWarningFg = '\x1b[93m';
-const colResetBg = '\x1b[49m';
-const colResetFg = '\x1b[39m';
+  .replace(/([0-9]*\.?[0-9]+)ff\b/gi, '$1e-15')
+  .replace(/([0-9]*\.?[0-9]+)aa\b/gi, '$1e-18')
+  .replace(/([0-9]*\.?[0-9]+)zz\b/gi, '$1e-21')
+  .replace(/([0-9]*\.?[0-9]+)yy\b/gi, '$1e-24');
 
 // initialize
 if (process.stdin.isTTY) {
@@ -105,6 +120,47 @@ if (process.stdin.isTTY) {
     fs.writeFileSync(HistoryFile, JSON.stringify(reader.history, null, '  '));
     process.exit(0);
   });
+
+  // disable Ctrl-C
+  reader.on('SIGINT', () => {});
+
+  // Clipboard
+  // Ctrl-C : Copy last result to the clipboard
+  // Ctrl-V : Paste from the clipboard
+  keypress(process.stdin);
+  process.stdin.on('keypress', (ch, key) => {
+    if (key && key.ctrl) {
+      switch (key.name) {
+        case 'c':
+          if (last_result != null && last_result.length > 0) {
+            clipboardy.write(last_result);
+            setTimeout(() => {
+              const pos = reader.cursor;
+              reader.prompt();
+              const right = {name: 'right'};
+              for (let i = 0; i < pos; i++) {
+                reader.write(null, right);
+              }
+            }, 1000);
+            process.stdout.write(`\x1b[0G${' '.repeat(process.stdout.columns)}`);
+            process.stdout.write(`\x1b[0G${colInfoBg} Copy ${colResetBg} < ${last_result}`);
+          }
+          break;
+        case 'v':
+          let cb = '';
+          try {
+            cb = clipboardy.readSync();
+          }
+          catch {}
+          finally {
+            reader.write(cb);
+          }
+          break;
+      }
+    }
+  });
+  process.stdin.setRawMode(true);
+  process.stdin.resume();
 }
 
 const truncate = (s, l) => {
@@ -220,28 +276,32 @@ reader.on('line', l => {
         execute(node.name.replace(/__at__/gi, '@'));
       }
       else {
+        if (node.args != null) {
+          node.args = node.args.map(e => math.simplify(e, rules));
+        }
         let result = node.compile().evaluate(parser.scope);
-        if (typeof(result) == 'undefined') { }
-        else if (typeof(result) == 'string') {
-          last_result = result;
-          console.log(last_result);
-        }
-        else {
-          let v = node;
-          while (typeof(v.value) != 'undefined') {
-            v = v.value;
+        if (typeof(result) != 'undefined') {
+          if (typeof(result) == 'string') {
+            last_result = truncate(result, 80);
+            console.log(last_result);
           }
-          let k = node;
-          while (typeof(k.value) != 'undefined') {
-            if (typeof(k.name) != 'undefined') {
-              parser.set(k.name, math.parse(v.toString()));
+          else {
+            let v = node;
+            while (typeof(v.value) != 'undefined') {
+              v = v.value;
             }
-            k = k.value;
+            let k = node;
+            while (typeof(k.value) != 'undefined') {
+              if (typeof(k.name) != 'undefined') {
+                parser.set(k.name, math.parse(v.toString()));
+              }
+              k = k.value;
+            }
+            last_result = truncate(math.round(result, 128).toString(), 80);
+            console.log(last_result);
           }
-          last_result = truncate(math.round(result, 128).toString(), 80);
-          console.log(last_result);
+          parser.set('__at__', math.simplify(node, rules));
         }
-        parser.set('__at__', node);
       }
     }
     catch (e) {
@@ -267,33 +327,3 @@ reader.on('line', l => {
   }
 });
 
-// disable Ctrl-C
-reader.on('SIGINT', () => {});
-
-// Clipboard
-// Ctrl-C : Copy last result to the clipboard
-// Ctrl-V : Paste from the clipboard
-keypress(process.stdin);
-process.stdin.on('keypress', (ch, key) => {
-  if (key && key.ctrl) {
-    switch (key.name) {
-      case 'c':
-        if (last_result != null && last_result.length > 0) {
-          clipboardy.write(last_result);
-        }
-        break;
-      case 'v':
-        let cb = '';
-        try {
-          cb = clipboardy.readSync();
-        }
-        catch {}
-        finally {
-          reader.write(cb);
-        }
-        break;
-    }
-  }
-});
-process.stdin.setRawMode(true);
-process.stdin.resume();
