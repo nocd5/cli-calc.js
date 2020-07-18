@@ -87,14 +87,14 @@ const parseBin = s => {
   return s;
 };
 const parseSIUnit = s => s
-  .replace(/([0-9]*\.?[0-9]+)k\b/gi, '$1e+3')
-  .replace(/([0-9]*\.?[0-9]+)m\b/gi, '$1e+6')
-  .replace(/([0-9]*\.?[0-9]+)g\b/gi, '$1e+9')
-  .replace(/([0-9]*\.?[0-9]+)t\b/gi, '$1e+12')
-  .replace(/([0-9]*\.?[0-9]+)p\b/gi, '$1e+15')
-  .replace(/([0-9]*\.?[0-9]+)e\b/gi, '$1e+18')
-  .replace(/([0-9]*\.?[0-9]+)z\b/gi, '$1e+21')
-  .replace(/([0-9]*\.?[0-9]+)y\b/gi, '$1e+24')
+  .replace(/([0-9]*\.?[0-9]+)k\b/gi, '$1e3')
+  .replace(/([0-9]*\.?[0-9]+)m\b/gi, '$1e6')
+  .replace(/([0-9]*\.?[0-9]+)g\b/gi, '$1e9')
+  .replace(/([0-9]*\.?[0-9]+)t\b/gi, '$1e12')
+  .replace(/([0-9]*\.?[0-9]+)p\b/gi, '$1e15')
+  .replace(/([0-9]*\.?[0-9]+)e\b/gi, '$1e18')
+  .replace(/([0-9]*\.?[0-9]+)z\b/gi, '$1e21')
+  .replace(/([0-9]*\.?[0-9]+)y\b/gi, '$1e24')
   .replace(/([0-9]*\.?[0-9]+)mm\b/gi, '$1e-3')
   .replace(/([0-9]*\.?[0-9]+)uu\b/gi, '$1e-6')
   .replace(/([0-9]*\.?[0-9]+)nn\b/gi, '$1e-9')
