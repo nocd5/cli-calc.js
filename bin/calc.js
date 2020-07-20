@@ -92,7 +92,7 @@ const parseSIUnit = s => s
   .replace(/([0-9]*\.?[0-9]+)g\b/gi, '$1e9')
   .replace(/([0-9]*\.?[0-9]+)t\b/gi, '$1e12')
   .replace(/([0-9]*\.?[0-9]+)p\b/gi, '$1e15')
-  .replace(/([0-9]*\.?[0-9]+)e\b/gi, '$1e18')
+  .replace(/([0-9]*\.?[0-9]+)ee\b/gi, '$1e18')
   .replace(/([0-9]*\.?[0-9]+)z\b/gi, '$1e21')
   .replace(/([0-9]*\.?[0-9]+)y\b/gi, '$1e24')
   .replace(/([0-9]*\.?[0-9]+)mm\b/gi, '$1e-3')
