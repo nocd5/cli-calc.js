@@ -81,6 +81,15 @@ Calc > a+b*c
 610
 ```
 
+- User defined function
+
+```sh
+Calc > f(a,b)=a*2+b
+f(a, b) = a * 2 + b
+Calc > f(2,3)
+7
+```
+
 - Copy & Paste
 
 |                   |       |

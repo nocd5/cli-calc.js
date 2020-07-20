@@ -139,9 +139,8 @@ if (process.stdin.isTTY) {
             setTimeout(() => {
               const pos = reader.cursor;
               reader.prompt();
-              const right = {name: 'right'};
               for (let i = 0; i < pos; i++) {
-                reader.write(null, right);
+                reader.write(null, { name: 'right' });
               }
             }, 1000);
             process.stdout.write(`\x1b[0G${' '.repeat(process.stdout.columns)}`);
@@ -184,9 +183,6 @@ const truncate = (s, l) => {
 const execute = cmd => {
   let buf = {};
   Object.keys(parser.scope).forEach(k => buf[k] = parser.scope[k]);
-  buf['@'] = buf['__at__'];
-  delete(buf['__at__']);
-
   switch (cmd) {
     case 'history':
       console.log(reader.history);
@@ -198,6 +194,8 @@ const execute = cmd => {
       process.stdout.write('\x1b[2J\x1b[0;0H');
       break;
     case 'ls':
+      buf['@'] = buf['__at__'];
+      delete(buf['__at__']);
       Object.keys(buf).filter(k => !(buf[k] instanceof Function)).forEach(k => {
         if (typeof(buf[k]) != 'undefined') {
           console.log(`${k}: ${truncate(buf[k].toString(), 80)}`);
@@ -208,9 +206,13 @@ const execute = cmd => {
       console.log(buf);
       break;
     case 'func':
-      Object.keys(buf).filter(k => buf[k] instanceof Function).forEach(k => {
-        console.log(`${k} = ${buf[k].toString()}\n`);
-      });
+      Object.keys(buf).filter(k => (buf[k] instanceof Function) && (buf[k].syntax == null))
+                      .forEach(k => console.log(`${k} = ${buf[k].toString()}\n`));
+      const udf = Object.keys(buf).filter(k => (buf[k] instanceof Function) && (buf[k].syntax != null));
+      if (udf.length > 0) {
+        console.log('User Defined Function:\n');
+        udf.forEach(k => console.log(`${buf[k].source}\n`));
+      }
       break;
     case 'exit':
     case 'quit':
@@ -272,7 +274,8 @@ reader.on('line', l => {
       let node = buf[0];
       if ((typeof(node.name)  != 'undefined') &
           (typeof(node.value) == 'undefined') &
-          (typeof(node.fn)    == 'undefined')
+          (typeof(node.fn)    == 'undefined') &
+          (typeof(node.expr)  == 'undefined')
       ) {
         reader.history.shift();
         execute(node.name.replace(/__at__/gi, '@'));
@@ -282,12 +285,8 @@ reader.on('line', l => {
           node.args = node.args.map(e => math.simplify(e, rules));
         }
         let result = node.compile().evaluate(parser.scope);
-        if (typeof(result) != 'undefined') {
-          if (typeof(result) == 'string') {
-            last_result = truncate(result, 80);
-            console.log(last_result);
-          }
-          else {
+        switch (typeof(result)) {
+          case 'object':
             let v = node;
             while (typeof(v.value) != 'undefined') {
               v = v.value;
@@ -301,8 +300,22 @@ reader.on('line', l => {
             }
             last_result = truncate(math.round(result, 128).toString(), 80);
             console.log(last_result);
-          }
-          parser.set('__at__', math.simplify(node, rules));
+            parser.set('__at__', math.simplify(node, rules));
+            break;
+          case 'string':
+            last_result = truncate(result, 80);
+            console.log(last_result);
+            parser.set('__at__', math.simplify(node, rules));
+            break;
+          case 'number':
+            last_result = truncate(result.toString(), 80);
+            console.log(last_result);
+            parser.set('__at__', math.simplify(node, rules));
+            break;
+          case 'function':
+            console.log(node.toString());
+            parser.scope[node.name].source = node.toString();
+            break;
         }
       }
     }
