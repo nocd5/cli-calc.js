@@ -272,11 +272,7 @@ reader.on('line', l => {
         assign(buf, e[0], v);
       });
       let node = buf[0];
-      if ((typeof(node.name)  != 'undefined') &
-          (typeof(node.value) == 'undefined') &
-          (typeof(node.fn)    == 'undefined') &
-          (typeof(node.expr)  == 'undefined')
-      ) {
+      if (Object.keys(node).toString() == ['name', 'comment'].toString()) {
         reader.history.shift();
         execute(node.name.replace(/__at__/gi, '@'));
       }
@@ -284,7 +280,7 @@ reader.on('line', l => {
         if (node.args != null) {
           node.args = node.args.map(e => math.simplify(e, rules));
         }
-        let result = node.compile().evaluate(parser.scope);
+        let result = node.evaluate(parser.scope);
         switch (typeof(result)) {
           case 'object':
             let v = node;
@@ -298,7 +294,15 @@ reader.on('line', l => {
               }
               k = k.value;
             }
-            last_result = truncate(math.round(result, 128).toString(), 80);
+            if (result instanceof mathjs.BigNumber) {
+              last_result = truncate(math.round(result, 128).toString(), 80);
+            }
+            else if (result instanceof math.Matrix) {
+              last_result = result.toString();
+            }
+            else {
+              last_result = result;
+            }
             console.log(last_result);
             parser.set('__at__', math.simplify(node, rules));
             break;
@@ -329,9 +333,7 @@ reader.on('line', l => {
         console.error(`  ${colErrorFg}${l}${colResetFg}`);
       }
       else if (e instanceof Error) {
-        if (e.message.match('Undefined symbol')) {
-          console.error(e.message);
-        }
+        console.error(e.message);
         console.error(`  ${colErrorFg}${l}${colResetFg}`);
         reader.history.shift();
       }
