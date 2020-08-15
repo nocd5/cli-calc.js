@@ -4,6 +4,14 @@ Calculator for CLI with math.js
 
 ![](screenshot.png)
 
+## Install
+
+```sh
+git clone https://github.com/nocd5/cli-calc.js
+cd cli-calc.js
+npm link
+```
+
 ## Commands
 
 
