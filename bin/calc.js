@@ -26,24 +26,18 @@ const reader = readline.createInterface({
 
 // Formatting functions
 parser.set('hex', v => {
-  if (v >= 0) {
-    return `0x${math.number(v).toString(16).toUpperCase()}`;
-  }
-  else {
-    let j = math.number(v);
+  let j = math.number(v);
+  if (j < 0) {
     j += (1 << (math.ceil((math.log(-j, 2) + 1) / 4) * 4));
-    return `0x${math.number(j).toString(16).toUpperCase()}`;
   }
+  return `0x${math.number(j).toString(16).toUpperCase()}`;
 });
 parser.set('bin', v => {
-  if (v >= 0) {
-    return `0b${math.number(v).toString(2).toUpperCase()}`;
-  }
-  else {
-    let j = math.number(v);
+  let j = math.number(v);
+  if (j < 0) {
     j += (1 << (math.ceil((math.log(-j, 2) + 1) / 4) * 4));
-    return `0b${math.number(j).toString(2).toUpperCase()}`;
   }
+  return `0b${math.number(j).toString(2).toUpperCase()}`;
 });
 parser.set('eng', v => math.format(v, { notation: 'engineering' }));
 parser.set('fix', v => math.format(v, { notation: 'fixed' }));
