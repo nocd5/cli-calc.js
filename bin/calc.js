@@ -28,16 +28,16 @@ const reader = readline.createInterface({
 parser.set('hex', v => {
   let j = math.number(v);
   if (j < 0) {
-    j += (1 << (math.ceil((math.log(-j, 2) + 1) / 4) * 4));
+    j += (1 << (math.ceil((math.log2(-j) + 1) / 4) * 4));
   }
   return `0x${math.number(j).toString(16).toUpperCase()}`;
 });
 parser.set('bin', v => {
   let j = math.number(v);
   if (j < 0) {
-    j += (1 << (math.ceil((math.log(-j, 2) + 1) / 4) * 4));
+    j += (1 << (math.ceil((math.log2(-j) + 1) / 4) * 4));
   }
-  return `0b${math.number(j).toString(2).toUpperCase()}`;
+  return `0b${math.number(j).toString(2)}`;
 });
 parser.set('eng', v => math.format(v, { notation: 'engineering' }));
 parser.set('fix', v => math.format(v, { notation: 'fixed' }));
@@ -62,7 +62,7 @@ const parseHex = s => {
     if (p != null) {
       w = (m.length - p.index - 1) * 4;
     }
-    s = s.replace(m, e => math.divide(math.bignumber(e.replace(/\./, '').replace(/_/g,'')), math.bignumber(2).pow(w)));
+    s = s.replace(m, e => math.divide(math.bignumber(e.replace(/\./, '').replace(/_/g, '')), math.bignumber(2).pow(w)));
   });
   return s;
 };
@@ -76,7 +76,7 @@ const parseBin = s => {
     if (p != null) {
       w = m.length - p.index - 1;
     }
-    s = s.replace(m, e => math.divide(math.bignumber(e.replace(/\./, '').replace(/_/g,'')), math.bignumber(2).pow(w)));
+    s = s.replace(m, e => math.divide(math.bignumber(e.replace(/\./, '').replace(/_/g, '')), math.bignumber(2).pow(w)));
   });
   return s;
 };
@@ -128,8 +128,10 @@ if (process.stdin.isTTY) {
     if (key && key.ctrl) {
       switch (key.name) {
         case 'c':
-          if (last_result != null && last_result.length > 0) {
-            clipboardy.write(last_result);
+          let at = parser.scope['__at__']
+          if (at != null) {
+            let last = evaluate(at);
+            clipboardy.write(last);
             setTimeout(() => {
               const pos = reader.cursor;
               reader.prompt();
@@ -138,7 +140,7 @@ if (process.stdin.isTTY) {
               }
             }, 1000);
             process.stdout.write(`\x1b[0G${' '.repeat(process.stdout.columns)}`);
-            process.stdout.write(`\x1b[0G${colInfoBg} Copy ${colResetBg} < ${last_result}`);
+            process.stdout.write(`\x1b[0G${colInfoBg} Copy ${colResetBg} < ${truncate(last, 80)}`);
           }
           break;
         case 'v':
@@ -172,7 +174,7 @@ const truncate = (s, l) => {
       return `${s.substr(0, l)}...`;
     }
   }
-}
+};
 
 const execute = cmd => {
   let buf = {};
@@ -217,7 +219,7 @@ const execute = cmd => {
       console.error(`  ${colErrorFg}${cmd}${colResetFg}`);
       break;
   }
-}
+};
 
 const assign = (n, t, v) => {
   for (let i = 0; i < n.length; i++) {
@@ -248,9 +250,54 @@ const assign = (n, t, v) => {
       assign(c.args, t, v);
     }
   }
-}
+};
 
-let last_result = '';
+const evaluate = n => {
+  let result = null;
+  if (n.args != null) {
+    n.args = n.args.map(e => math.simplify(e, rules));
+  }
+  let evaled = n.evaluate(parser.scope);
+  switch (typeof(evaled)) {
+    case 'object':
+      let v = n;
+      while (typeof(v.value) != 'undefined') {
+        v = v.value;
+      }
+      let k = n;
+      while (typeof(k.value) != 'undefined') {
+        if (typeof(k.name) != 'undefined') {
+          parser.set(k.name, math.parse(v.toString()));
+        }
+        k = k.value;
+      }
+      if (evaled instanceof mathjs.BigNumber) {
+        result = math.round(evaled, 128).toString();
+      }
+      else if (evaled instanceof math.Matrix) {
+        result = evaled.toString();
+      }
+      else {
+        result = evaled;
+      }
+      parser.set('__at__', math.simplify(n, rules));
+      break;
+    case 'string':
+      result = evaled;
+      parser.set('__at__', math.simplify(n, rules));
+      break;
+    case 'number':
+      result = evaled.toString();
+      parser.set('__at__', math.simplify(n, rules));
+      break;
+    case 'function':
+      result = n.toString();
+      parser.scope[n.name].source = n.toString();
+      break;
+  }
+  return result;
+};
+
 reader.on('line', l => {
   if (l.length > 0) {
     try {
@@ -271,50 +318,7 @@ reader.on('line', l => {
         execute(node.name.replace(/__at__/gi, '@'));
       }
       else {
-        if (node.args != null) {
-          node.args = node.args.map(e => math.simplify(e, rules));
-        }
-        let result = node.evaluate(parser.scope);
-        switch (typeof(result)) {
-          case 'object':
-            let v = node;
-            while (typeof(v.value) != 'undefined') {
-              v = v.value;
-            }
-            let k = node;
-            while (typeof(k.value) != 'undefined') {
-              if (typeof(k.name) != 'undefined') {
-                parser.set(k.name, math.parse(v.toString()));
-              }
-              k = k.value;
-            }
-            if (result instanceof mathjs.BigNumber) {
-              last_result = truncate(math.round(result, 128).toString(), 80);
-            }
-            else if (result instanceof math.Matrix) {
-              last_result = result.toString();
-            }
-            else {
-              last_result = result;
-            }
-            console.log(last_result);
-            parser.set('__at__', math.simplify(node, rules));
-            break;
-          case 'string':
-            last_result = truncate(result, 80);
-            console.log(last_result);
-            parser.set('__at__', math.simplify(node, rules));
-            break;
-          case 'number':
-            last_result = truncate(result.toString(), 80);
-            console.log(last_result);
-            parser.set('__at__', math.simplify(node, rules));
-            break;
-          case 'function':
-            console.log(node.toString());
-            parser.scope[node.name].source = node.toString();
-            break;
-        }
+          console.log(truncate(evaluate(node), 80));
       }
     }
     catch (e) {
