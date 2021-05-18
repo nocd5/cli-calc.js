@@ -178,7 +178,8 @@ const truncate = (s, l) => {
 
 const execute = cmd => {
   let buf = {};
-  Object.keys(parser.scope).forEach(k => buf[k] = parser.scope[k]);
+  let keys = Object.keys(parser.scope);
+  keys.forEach(k => buf[k] = parser.scope[k]);
   switch (cmd) {
     case 'history':
       console.log(reader.history);
@@ -192,7 +193,7 @@ const execute = cmd => {
     case 'ls':
       buf['@'] = buf['__at__'];
       delete(buf['__at__']);
-      Object.keys(buf).filter(k => !(buf[k] instanceof Function)).forEach(k => {
+      keys.filter(k => !(buf[k] instanceof Function)).forEach(k => {
         if (typeof(buf[k]) != 'undefined') {
           console.log(`${k}: ${truncate(buf[k].toString(), 80)}`);
         }
@@ -202,9 +203,9 @@ const execute = cmd => {
       console.log(buf);
       break;
     case 'func':
-      Object.keys(buf).filter(k => (buf[k] instanceof Function) && (buf[k].syntax == null))
-                      .forEach(k => console.log(`${k} = ${buf[k].toString()}\n`));
-      const udf = Object.keys(buf).filter(k => (buf[k] instanceof Function) && (buf[k].syntax != null));
+      keys.filter(k => (buf[k] instanceof Function) && (buf[k].syntax == null))
+          .forEach(k => console.log(`${k} = ${buf[k].toString()}\n`));
+      const udf = keys.filter(k => (buf[k] instanceof Function) && (buf[k].syntax != null));
       if (udf.length > 0) {
         console.log('User Defined Function:\n');
         udf.forEach(k => console.log(`${buf[k].source}\n`));
@@ -232,9 +233,7 @@ const assign = (n, t, v) => {
       }
       else {
         while (typeof(c.value) != 'undefined') {
-          if ((c.value.name == t) &
-              (typeof(c.value.value)=='undefined')
-          ) {
+          if ((c.value.name == t) && (typeof(c.value.value) == 'undefined')) {
             c.value = v
           }
           else {
@@ -280,7 +279,13 @@ const evaluate = n => {
       else {
         result = evaled;
       }
-      parser.set('__at__', math.simplify(n, rules));
+      let s = math.simplify(n, rules);
+      if (s.value instanceof math.Node) {
+        parser.set('__at__', s.value);
+      }
+      else {
+        parser.set('__at__', s);
+      }
       break;
     case 'string':
       result = evaled;
@@ -294,6 +299,9 @@ const evaluate = n => {
       result = n.toString();
       parser.scope[n.name].source = n.toString();
       break;
+    case 'boolean':
+      result = evaled.toString();
+      break;
   }
   return result;
 };
@@ -302,6 +310,14 @@ reader.on('line', l => {
   if (l.length > 0) {
     try {
       let exp = l.replace(/@/gi, '__at__');
+
+      if (parser.scope['__at__'] != null) {
+        // regexp error occur if top of list is '+'
+        if (exp.match(/^(?:[-+\*\/\^\|&]|(?:<<)|(?:>>))/)) {
+          exp = '__at__' + exp;
+        }
+      }
+
       exp = parseSIUnit(parseBin(parseHex(exp)));
       let buf = [];
       buf[0] = math.parse(exp);
@@ -313,28 +329,35 @@ reader.on('line', l => {
         assign(buf, e[0], v);
       });
       let node = buf[0];
+
+      if (node.name == '__at__' && node.value != null) {
+        if (node instanceof math.Node) {
+          throw new Error('Can not overwrite \'@\'');
+        }
+      }
+      if (parser.scope['__at__'] == null && exp.includes('__at__')) {
+        throw new Error('\'@\' is empty yet');
+      }
+
       if (Object.keys(node).toString() == ['name', 'comment'].toString()) {
         reader.history.shift();
-        execute(node.name.replace(/__at__/gi, '@'));
+        execute(l);
       }
       else {
-          console.log(truncate(evaluate(node), 80));
+        console.log(truncate(evaluate(node), 80));
       }
     }
     catch (e) {
       if (e instanceof SyntaxError) {
         console.error('Invalid expression');
-        console.error(`  ${colErrorFg}${l}${colResetFg}`);
       }
       else if (e instanceof TypeError) {
         console.error('Invalid expression');
-        console.error(`  ${colErrorFg}${l}${colResetFg}`);
       }
       else if (e instanceof Error) {
         console.error(e.message);
-        console.error(`  ${colErrorFg}${l}${colResetFg}`);
-        reader.history.shift();
       }
+      console.error(`  ${colErrorFg}${l}${colResetFg}`);
     }
   }
   if (process.stdin.isTTY) {

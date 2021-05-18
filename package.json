@@ -14,6 +14,6 @@
   "dependencies": {
     "clipboardy": "^2.3.0",
     "keypress": "^0.2.1",
-    "mathjs": "^7.0.2"
+    "mathjs": "^9.3.2"
   }
 }
