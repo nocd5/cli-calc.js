@@ -2,27 +2,33 @@
 
 'use strict';
 
-const fs = require('fs');
-const path = require('path');
-const mathjs = require('mathjs');
-const keypress = require('keypress');
-const clipboardy = require('clipboardy');
-const readline = require('readline');
-
 const colPromptBg = '\x1b[44m';
 const colInfoBg = '\x1b[42m';
 const colErrorFg = '\x1b[91m';
 const colWarningFg = '\x1b[93m';
 const colResetBg = '\x1b[49m';
 const colResetFg = '\x1b[39m';
+const colSetupBg = '\x1b[43m';
 
-const math = mathjs.create(mathjs.all, { number: 'BigNumber', precision: 256 });
-const parser = math.parser();
-
+const readline = require('readline');
 const reader = readline.createInterface({
   input: process.stdin,
   output: process.stdout,
 });
+
+if (process.stdin.isTTY) {
+  reader.setPrompt(`${colSetupBg} Wait ${colResetBg} > `);
+  reader.prompt();
+}
+
+const fs = require('fs');
+const path = require('path');
+const keypress = require('keypress');
+const clipboardy = require('clipboardy');
+
+const mathjs = require('mathjs');
+const math = mathjs.create(mathjs.all, { number: 'BigNumber', precision: 256 });
+const parser = math.parser();
 
 // Formatting functions
 parser.set('hex', v => {
@@ -97,68 +103,6 @@ const parseSIUnit = s => s
   .replace(/([0-9]*\.?[0-9]+)aa\b/gi, '$1e-18')
   .replace(/([0-9]*\.?[0-9]+)zz\b/gi, '$1e-21')
   .replace(/([0-9]*\.?[0-9]+)yy\b/gi, '$1e-24');
-
-// initialize
-if (process.stdin.isTTY) {
-  // title
-  process.stdout.write('\x1b]0;Calc\x07');
-  // prompt
-  reader.setPrompt(`${colPromptBg} Calc ${colResetBg} > `);
-  reader.prompt();
-  // history
-  const home = process.env[process.platform == 'win32' ? 'USERPROFILE' : 'HOME'];
-  const HistoryFile = path.join(home, '.calc.history');
-  try {
-    reader.history = JSON.parse(fs.readFileSync(HistoryFile));
-  }
-  catch (e) { }
-  reader.on('close', () => {
-    fs.writeFileSync(HistoryFile, JSON.stringify(reader.history, null, '  '));
-    process.exit(0);
-  });
-
-  // disable Ctrl-C
-  reader.on('SIGINT', () => {});
-
-  // Clipboard
-  // Ctrl-C : Copy last result to the clipboard
-  // Ctrl-V : Paste from the clipboard
-  keypress(process.stdin);
-  process.stdin.on('keypress', (ch, key) => {
-    if (key && key.ctrl) {
-      switch (key.name) {
-        case 'c':
-          let at = parser.scope['__at__']
-          if (at != null) {
-            let last = evaluate(at);
-            clipboardy.write(last);
-            setTimeout(() => {
-              const pos = reader.cursor;
-              reader.prompt();
-              for (let i = 0; i < pos; i++) {
-                reader.write(null, { name: 'right' });
-              }
-            }, 1000);
-            process.stdout.write(`\x1b[0G${' '.repeat(process.stdout.columns)}`);
-            process.stdout.write(`\x1b[0G${colInfoBg} Copy ${colResetBg} < ${truncate(last, 80)}`);
-          }
-          break;
-        case 'v':
-          let cb = '';
-          try {
-            cb = clipboardy.readSync();
-          }
-          catch {}
-          finally {
-            reader.write(cb);
-          }
-          break;
-      }
-    }
-  });
-  process.stdin.setRawMode(true);
-  process.stdin.resume();
-}
 
 const truncate = (s, l) => {
   if (s.length <= l) {
@@ -364,4 +308,78 @@ reader.on('line', l => {
     reader.prompt();
   }
 });
+
+// initialize
+if (process.stdin.isTTY) {
+  // title
+  process.stdout.write('\x1b]0;Calc\x07');
+  // prompt
+  reader.setPrompt(`${colPromptBg} Calc ${colResetBg} > `);
+  reader.prompt();
+  // history
+  const home = process.env[process.platform == 'win32' ? 'USERPROFILE' : 'HOME'];
+  const HistoryFile = path.join(home, '.calc.history');
+  const FunctionFile = path.join(home, '.calc.function');
+  try {
+    reader.history = JSON.parse(fs.readFileSync(HistoryFile));
+    let func = JSON.parse(fs.readFileSync(FunctionFile));
+    Object.keys(func).forEach(k => evaluate(math.parse(func[k])));
+  }
+  catch (e) { }
+  reader.on('close', () => {
+    fs.writeFileSync(HistoryFile, JSON.stringify(reader.history, null, '  '));
+    let keys = Object.keys(parser.scope).filter(k => {
+        return (parser.scope[k] instanceof Function) &&
+               (parser.scope[k].syntax != null);
+    });
+    if (keys.length > 0) {
+      let buf = {};
+      keys.forEach(k => buf[k] = parser.scope[k].source);
+      fs.writeFileSync(FunctionFile, JSON.stringify(buf, null, '  '));
+    }
+    process.exit(0);
+  });
+
+  // disable Ctrl-C
+  reader.on('SIGINT', () => {});
+
+  // Clipboard
+  // Ctrl-C : Copy last result to the clipboard
+  // Ctrl-V : Paste from the clipboard
+  keypress(process.stdin);
+  process.stdin.on('keypress', (ch, key) => {
+    if (key && key.ctrl) {
+      switch (key.name) {
+        case 'c':
+          let at = parser.scope['__at__']
+          if (at != null) {
+            let last = evaluate(at);
+            clipboardy.write(last);
+            setTimeout(() => {
+              const pos = reader.cursor;
+              reader.prompt();
+              for (let i = 0; i < pos; i++) {
+                reader.write(null, { name: 'right' });
+              }
+            }, 1000);
+            process.stdout.write(`\x1b[0G${' '.repeat(process.stdout.columns)}`);
+            process.stdout.write(`\x1b[0G${colInfoBg} Copy ${colResetBg} < ${truncate(last, 80)}`);
+          }
+          break;
+        case 'v':
+          let cb = '';
+          try {
+            cb = clipboardy.readSync();
+          }
+          catch (e) { }
+          finally {
+            reader.write(cb);
+          }
+          break;
+      }
+    }
+  });
+  process.stdin.setRawMode(true);
+  process.stdin.resume();
+}
 
